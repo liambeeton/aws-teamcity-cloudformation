@@ -1,0 +1,5 @@
+wget http://download.jetbrains.com/teamcity/TeamCity-9.0.5.tar.gz
+tar -xvzf TeamCity-9.0.5.tar.gz
+export TEAMCITY_DATA_PATH="/var/TeamCity/.BuildServer"
+cd TeamCity
+bin/teamcity-server.sh start

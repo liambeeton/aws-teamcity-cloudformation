@@ -1,0 +1,179 @@
+{
+   "AWSTemplateFormatVersion":"2010-09-09",
+   "Description":"TeamCity Server for Windows Server 2012 R2",
+   "Resources":{
+      "AutoScaleGroup":{
+         "Type":"AWS::AutoScaling::AutoScalingGroup",
+         "Properties":{
+            "AvailabilityZones":{
+               "Fn::GetAZs":{
+                  "Ref":"AWS::Region"
+               }
+            },
+            "LaunchConfigurationName":{
+               "Ref":"LaunchConfiguration"
+            },
+            "MaxSize":"1",
+            "MinSize":"0",
+            "DesiredCapacity":"1"
+         }
+      },
+      "LaunchConfiguration":{
+         "Type":"AWS::AutoScaling::LaunchConfiguration",
+         "Properties":{
+            "ImageId":"ami-c1740ab6",
+            "InstanceType":"t2.medium",
+            "BlockDeviceMappings":[
+               {
+                  "DeviceName":"/dev/sda1",
+                  "Ebs":{
+                     "VolumeSize":"50"
+                  }
+               },
+               {
+                  "DeviceName":"/dev/sdm",
+                  "Ebs":{
+                     "VolumeSize":"50"
+                  }
+               }
+            ],
+            "KeyName":"eu-west-1",
+            "SecurityGroups":[
+               {
+                  "Ref":"SecurityGroup"
+               }
+            ],
+            "UserData":{
+               "Fn::Base64":{
+                  "Fn::Join":[
+                     "",
+                     [
+                        "<script>\n",
+                        "cfn-init.exe --stack ",
+                        {
+                           "Ref":"AWS::StackName"
+                        },
+                        " --resource LaunchConfiguration --region ",
+                        {
+                           "Ref":"AWS::Region"
+                        },
+                        " --configsets all -v\n",
+                        "</script>"
+                     ]
+                  ]
+               }
+            }
+         },
+         "Metadata":{
+            "AWS::CloudFormation::Init":{
+               "configSets":{
+                  "all":[
+                     "server"
+                  ],
+                  "serverSet":[
+                     "server"
+                  ]
+               },
+               "server":{
+                  "files":{
+                     "C:\\tcsmanage.cmd":{
+                        "content":{
+                           "Fn::Join":[
+                              "",
+                              [
+                                 "@ECHO OFF\n",
+                                 "IF \"%1\"==\"install\" GOTO install\n",
+                                 "IF \"%1\"==\"uninstall\" GOTO uninstall\n",
+                                 "IF \"%1\"==\"start\" GOTO start\n",
+                                 "IF \"%1\"==\"stop\" GOTO stop\n",
+                                 "GOTO end\n",
+                                 "\n",
+                                 ":install\n",
+                                 "SETX TEAMCITY_DATA_PATH C:\\TeamCityServerData /m\n",
+                                 "XCOPY C:\\TeamCity-9.0.5 C:\\TeamCityServer /s /q /i\n",
+                                 "NETSH advfirewall firewall add rule name=\"TeamCity Server\" dir=in action=allow protocol=TCP localport=80\n",
+                                 "CALL C:\\TeamCityServer\\TeamCity\\bin\\teamcity-server service install /runAsSystem\n",
+                                 "GOTO end\n",
+                                 "\n",
+                                 ":uninstall\n",
+                                 "CALL C:\\TeamCityServer\\TeamCity\\bin\\teamcity-server service delete\n",
+                                 "NETSH advfirewall firewall delete rule name=\"TeamCity Server\"\n",
+                                 "RMDIR /s /q C:\\TeamCityServer\n",
+                                 "GOTO end\n",
+                                 "\n",
+                                 ":start\n",
+                                 "NET start TeamCity\n",
+                                 "GOTO end\n",
+                                 "\n",
+                                 ":stop\n",
+                                 "NET stop TeamCity\n",
+                                 "GOTO end\n",
+                                 "\n",
+                                 ":end\n",
+                                 "\n"
+                              ]
+                           ]
+                        }
+                     }
+                  },
+                  "commands":{
+                     "1-stop":{
+                        "command":"C:\\tcsmanage.cmd stop",
+                        "waitAfterCompletion":5,
+                        "ignoreErrors":"true"
+                     },
+                     "2-uninstall":{
+                        "command":"C:\\tcsmanage.cmd uninstall",
+                        "waitAfterCompletion":5,
+                        "ignoreErrors":"true"
+                     },
+                     "3-install":{
+                        "command":"C:\\tcsmanage.cmd install",
+                        "waitAfterCompletion":5
+                     },
+                     "4-start":{
+                        "command":"C:\\tcsmanage.cmd start",
+                        "waitAfterCompletion":120
+                     }
+                  },
+                  "sources":{
+                     "C:\\TeamCity-9.0.5":"http://download.jetbrains.com/teamcity/TeamCity-9.0.5.tar.gz"
+                  }
+               }
+            }
+         }
+      },
+      "SecurityGroup":{
+         "Type":"AWS::EC2::SecurityGroup",
+         "Properties":{
+            "GroupDescription":"TeamCity Server Security Group",
+            "SecurityGroupIngress":[
+               {
+                  "IpProtocol":"tcp",
+                  "CidrIp":"0.0.0.0/0",
+                  "FromPort":"3389",
+                  "ToPort":"3389"
+               },
+               {
+                  "IpProtocol":"tcp",
+                  "CidrIp":"0.0.0.0/0",
+                  "FromPort":"80",
+                  "ToPort":"80"
+               },
+               {
+                  "IpProtocol":"tcp",
+                  "CidrIp":"0.0.0.0/0",
+                  "FromPort":"22",
+                  "ToPort":"22"
+               },
+               {
+                  "IpProtocol":"tcp",
+                  "CidrIp":"0.0.0.0/0",
+                  "FromPort":"8111",
+                  "ToPort":"8111"
+               }
+            ]
+         }
+      }
+   }
+}
